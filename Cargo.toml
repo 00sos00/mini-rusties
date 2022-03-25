@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "rusties/puzzle-string",
+    "rusties/tokio-terminal-commands",
+]
