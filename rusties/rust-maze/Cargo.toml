@@ -1,0 +1,9 @@
+[package]
+name = "rust_maze"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rand = "0.8.5"
+libm = "0.2.2"
+colored = "2"
