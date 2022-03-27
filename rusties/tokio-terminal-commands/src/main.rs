@@ -1,6 +1,5 @@
-use tokio::spawn;
 use tokio::io::{stdin, AsyncBufReadExt, BufReader};
-
+use tokio::spawn;
 
 #[tokio::main]
 async fn main() {
