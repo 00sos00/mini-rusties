@@ -5,11 +5,11 @@ use wgpu::{vertex_attr_array, BufferAddress, VertexAttribute, VertexBufferLayout
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
     pub position: [f32; 3],
-    pub color: [f32; 3],
+    pub tex_coords: [f32; 2],
 }
 
 impl Vertex {
-    const ATTRIBUTES: [VertexAttribute; 2] = vertex_attr_array![0 => Float32x3, 1 => Float32x3];
+    const ATTRIBUTES: [VertexAttribute; 2] = vertex_attr_array![0 => Float32x3, 1 => Float32x2];
 
     pub fn layout<'a>() -> VertexBufferLayout<'a> {
         VertexBufferLayout {
