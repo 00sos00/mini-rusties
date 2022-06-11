@@ -1,9 +1,4 @@
-use crate::{
-    camera::Camera,
-    texture::Texture,
-    vertex::Vertex,
-    TRI_INDICES, TRI_VERTICES,
-};
+use crate::{camera::Camera, texture::Texture, vertex::Vertex, Cube, CUBE_VERTICES};
 use wgpu::{include_wgsl, util::DeviceExt};
 use winit::window::Window;
 use winit_input_helper::WinitInputHelper;
@@ -16,9 +11,9 @@ fn begin_render_pass(state: &State, encoder: &mut wgpu::CommandEncoder, view: &w
             resolve_target: None,
             ops: wgpu::Operations {
                 load: wgpu::LoadOp::Clear(wgpu::Color {
-                    r: 0.1,
-                    g: 0.1,
-                    b: 0.1,
+                    r: 4.0 / 255.0,
+                    g: 4.0 / 255.0,
+                    b: 4.0 / 255.0,
                     a: 1.0,
                 }),
                 store: true,
@@ -29,10 +24,10 @@ fn begin_render_pass(state: &State, encoder: &mut wgpu::CommandEncoder, view: &w
 
     render_pass.set_pipeline(&state.render_pipeline);
     render_pass.set_bind_group(0, &state.tree_texture_bind_group, &[]);
-    render_pass.set_bind_group(1, &state.camera_bind_group, &[]);
-    render_pass.set_vertex_buffer(0, state.tri_vertex_buffer.slice(..));
-    render_pass.set_index_buffer(state.tri_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-    render_pass.draw_indexed(0..state.tri_num_indices, 0, 0..1);
+    render_pass.set_bind_group(1, &state.camera.bind_group, &[]);
+    render_pass.set_bind_group(2, &state.cube.bind_group, &[]);
+    render_pass.set_vertex_buffer(0, state.cube_vertex_buffer.slice(..));
+    render_pass.draw(0..CUBE_VERTICES.len() as u32, 0..1);
 }
 
 pub struct State {
@@ -42,14 +37,17 @@ pub struct State {
     config: wgpu::SurfaceConfiguration,
     surface: wgpu::Surface,
     render_pipeline: wgpu::RenderPipeline,
-    pub camera: Camera,
-    camera_buffer: wgpu::Buffer,
-    camera_bind_group: wgpu::BindGroup,
+    camera: Camera,
+    pub mouse_offset: (f32, f32),
+    pub capture_mouse: bool,
+    pub cube: Cube,
     tree_texture: Texture,
     tree_texture_bind_group: wgpu::BindGroup,
-    pub tri_num_indices: u32,
-    pub tri_index_buffer: wgpu::Buffer,
-    pub tri_vertex_buffer: wgpu::Buffer,
+    pub cube_vertex_buffer: wgpu::Buffer,
+    pub dt: f32,
+    pub current_time: std::time::Instant,
+    pub start_time: std::time::Instant,
+    pub time_since_start: f32,
 }
 
 impl State {
@@ -89,39 +87,13 @@ impl State {
             present_mode: wgpu::PresentMode::Fifo,
         };
 
-        let camera = Camera::new();
+        let camera = Camera::new(&device, "Main Camera");
+        let mut cube = Cube::new(&device, "Cube");
 
-        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&[camera.uniform()]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        cube.scale(50.0, 50.0, 50.0);
+        cube.translate(0.0, 0.0, 0.0);
 
-        let camera_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("camera_bind_group_layout"),
-            });
-
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-            label: Some("camera_bind_group"),
-        });
-
-        let tree_texture_bytes = include_bytes!("happy-tree.png");
+        let tree_texture_bytes = include_bytes!("tree.png");
         let tree_texture =
             Texture::from_bytes(&device, &queue, tree_texture_bytes, Some("Tree texture")).unwrap();
 
@@ -168,7 +140,7 @@ impl State {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&tree_texture_bind_group_layout, &camera_bind_group_layout],
+                bind_group_layouts: &[&tree_texture_bind_group_layout, &camera.bind_group_layout, &cube.bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -207,19 +179,11 @@ impl State {
             multiview: None,
         });
 
-        let tri_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let cube_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(TRI_VERTICES),
+            contents: bytemuck::cast_slice(CUBE_VERTICES),
             usage: wgpu::BufferUsages::VERTEX,
         });
-
-        let tri_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(TRI_INDICES),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-
-        let tri_num_indices = TRI_INDICES.len() as u32;
 
         Self {
             input,
@@ -229,13 +193,16 @@ impl State {
             surface,
             render_pipeline,
             camera,
-            camera_buffer,
-            camera_bind_group,
+            mouse_offset: (0.0, 0.0),
+            capture_mouse: true,
+            cube,
             tree_texture,
             tree_texture_bind_group,
-            tri_num_indices,
-            tri_index_buffer,
-            tri_vertex_buffer,
+            cube_vertex_buffer,
+            dt: 0.0,
+            current_time: std::time::Instant::now(),
+            start_time: std::time::Instant::now(),
+            time_since_start: 0.0,
         }
     }
 
@@ -247,18 +214,33 @@ impl State {
         }
     }
 
-    pub fn update(&mut self) {
-        self.camera.process_input(&self.input);
-        self.camera.aspect = self.config.width as f32 / self.config.height as f32;
+    fn update_camera(&mut self) {
+        if self.capture_mouse {
+            self.camera.process_input(
+                self.mouse_offset,
+                &self.input,
+                self.time_since_start,
+                self.dt,
+            );
+            self.mouse_offset = (0.0, 0.0);
+        }
 
-        self.queue.write_buffer(
-            &self.camera_buffer,
-            0,
-            bytemuck::cast_slice(&[self.camera.uniform()]),
-        );
+        self.camera.aspect = self.config.width as f32 / self.config.height as f32;
+        self.camera.update_uniform_buffer(&self.queue);
+    }
+
+    fn update_cube(&mut self) {
+        self.cube.update_uniform_buffer(&self.queue);
+    }
+
+    pub fn update(&mut self) {
+        self.update_cube();
+        self.update_camera();
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        self.time_since_start = self.start_time.elapsed().as_secs_f32();
+
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
