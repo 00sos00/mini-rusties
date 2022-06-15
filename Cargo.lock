@@ -945,6 +945,7 @@ dependencies = [
  "env_logger",
  "glam",
  "image",
+ "lazy_static",
  "log",
  "pollster",
  "wgpu",

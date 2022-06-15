@@ -4,16 +4,15 @@ mod state;
 mod texture;
 mod vertex;
 mod cube;
+mod transform;
 
 /* use env_logger::Builder;
 use log::LevelFilter; */
 use state::State;
-use vertex::Vertex;
 use winit::{
     event_loop::EventLoop,
     window::WindowBuilder,
 };
-use cube::{Cube, CUBE_VERTICES};
 
 fn  main() {
     // Builder::new().filter_level(LevelFilter::Info).init();

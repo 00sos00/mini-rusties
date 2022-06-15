@@ -1,4 +1,4 @@
-use crate::Vertex;
+use crate::{vertex::Vertex, transform::*};
 use glam::*;
 use wgpu::{util::BufferInitDescriptor, util::DeviceExt, BufferUsages, Device, Queue};
 
@@ -213,9 +213,7 @@ pub const CUBE_VERTICES: &[Vertex] = &[
 ]; */
 
 pub struct Cube {
-    pub translation: Vec3,
-    pub rotation: Vec3,
-    pub scale: Vec3,
+    pub transform: Transform,
     buffer: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
     pub bind_group_layout: wgpu::BindGroupLayout,
@@ -257,42 +255,22 @@ impl Cube {
         });
 
         Self {
-            translation: Vec3::ZERO,
-            rotation: Vec3::ZERO,
-            scale: Vec3::ONE,
+            transform: Transform::default(),
             buffer,
             bind_group,
             bind_group_layout,
         }
     }
 
-    pub fn translate(&mut self, x: f32, y: f32, z: f32) {
-        self.translation.x += x;
-        self.translation.y += y;
-        self.translation.z += z;
-    }
-
-    pub fn rotate(&mut self, x: f32, y: f32, z: f32) {
-        self.rotation.x += x;
-        self.rotation.y += y;
-        self.rotation.z += z;
-    }
-
-    pub fn scale(&mut self, x: f32, y: f32, z: f32) {
-        self.scale.x += x;
-        self.scale.y += y;
-        self.scale.z += z;
-    }
-
     fn model_mat(&self) -> Mat4 {
-        let scale_matrix = Mat4::from_scale(self.scale);
+        let scale_matrix = Mat4::from_scale(self.transform.scale);
         let rotation_matrix = Mat4::from_euler(
             EulerRot::XYZ,
-            self.rotation.x.to_radians(),
-            -self.rotation.y.to_radians(),
-            self.rotation.z.to_radians(),
+            self.transform.orientation.pitch.to_radians(),
+            self.transform.orientation.yaw.to_radians(),
+            self.transform.orientation.roll.to_radians(),
         );
-        let translation_matrix = Mat4::from_translation(self.translation);
+        let translation_matrix = Mat4::from_translation(self.transform.translation);
 
         translation_matrix * rotation_matrix * scale_matrix
     }

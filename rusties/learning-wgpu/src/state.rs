@@ -1,4 +1,9 @@
-use crate::{camera::Camera, texture::Texture, vertex::Vertex, Cube, CUBE_VERTICES};
+use crate::{
+    camera::Camera,
+    cube::{Cube, CUBE_VERTICES},
+    texture::Texture,
+    vertex::Vertex,
+};
 use wgpu::{include_wgsl, util::DeviceExt};
 use winit::window::Window;
 use winit_input_helper::WinitInputHelper;
@@ -90,8 +95,8 @@ impl State {
         let camera = Camera::new(&device, "Main Camera");
         let mut cube = Cube::new(&device, "Cube");
 
-        cube.scale(50.0, 50.0, 50.0);
-        cube.translate(0.0, 0.0, 0.0);
+        cube.transform.scale(50.0, 50.0, 50.0);
+        cube.transform.translate(0.0, 0.0, 100.0);
 
         let tree_texture_bytes = include_bytes!("tree.png");
         let tree_texture =
@@ -140,7 +145,11 @@ impl State {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&tree_texture_bind_group_layout, &camera.bind_group_layout, &cube.bind_group_layout],
+                bind_group_layouts: &[
+                    &tree_texture_bind_group_layout,
+                    &camera.bind_group_layout,
+                    &cube.bind_group_layout,
+                ],
                 push_constant_ranges: &[],
             });
 
@@ -230,6 +239,7 @@ impl State {
     }
 
     fn update_cube(&mut self) {
+        self.cube.transform.look_at(self.camera.transform.translation);
         self.cube.update_uniform_buffer(&self.queue);
     }
 
