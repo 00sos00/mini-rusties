@@ -2,7 +2,7 @@ use crate::{
     camera::Camera,
     cube::{Cube, CUBE_VERTICES},
     texture::Texture,
-    vertex::Vertex,
+    vertex::Vertex, transform::TransformState,
 };
 use wgpu::{include_wgsl, util::DeviceExt};
 use winit::window::Window;
@@ -92,7 +92,7 @@ impl State {
             present_mode: wgpu::PresentMode::Fifo,
         };
 
-        let camera = Camera::new(&device, "Main Camera");
+        let mut camera = Camera::new(&device, "Main Camera");
         let mut cube = Cube::new(&device, "Cube");
 
         cube.transform.scale(50.0, 50.0, 50.0);
