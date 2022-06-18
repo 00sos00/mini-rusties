@@ -1,6 +1,6 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MyNum {
-    data: Vec<u8>,
+    pub data: Vec<u32>,
 }
 
 impl MyNum {
@@ -23,7 +23,7 @@ impl MyNum {
 
     pub fn and(&self, rhs: &Self) -> Self {
         assert_eq!(self.data.len(), rhs.data.len());
-
+        
         let data = self
             .data
             .iter()

@@ -16,8 +16,7 @@ fn main() {
     my_num.set_nth_bit(8);
     my_num2.set_nth_bit(2);
     my_num2.set_nth_bit(8);
-    let n = my_num.and(&my_num2) == my_num2;
-    my_num = my_num.and(&my_num2);
+    let n = my_num.and(&my_num2);
 
-    println!("{} {:?}", n, my_num);
+    println!("{:?}", n.data);
 }
