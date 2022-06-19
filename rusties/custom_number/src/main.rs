@@ -1,22 +1,21 @@
 mod my_num;
-
 use my_num::MyNum;
 
-const MAX_COMPONENTS: usize = 16;
-
-// (MAX_COMPONENTS as f32 / 8.0).ceil()
-// gives us the minimum amount of bytes needed to store
-// [MAX_COMPONENTS] amount of components
+const MAX_COMPONENTS: usize = 32;
 
 fn main() {
-    let mut my_num = MyNum::new((MAX_COMPONENTS as f32 / 8.0).ceil() as usize);
-    let mut my_num2 = MyNum::new((MAX_COMPONENTS as f32 / 8.0).ceil() as usize);
+    let mut my_num = MyNum::with_bits(MAX_COMPONENTS);
+
+    my_num.set_nth_bit(0);
     my_num.set_nth_bit(1);
-    my_num.set_nth_bit(2);
-    my_num.set_nth_bit(8);
-    my_num2.set_nth_bit(2);
-    my_num2.set_nth_bit(8);
+    my_num.set_nth_bit(7);
+
+    let mut my_num2 = MyNum::with_bits(MAX_COMPONENTS);
+
+    my_num2.set_nth_bit(1);
+    my_num2.set_nth_bit(7);
+    
     let n = my_num.and(&my_num2);
 
-    println!("{:?}", n.data);
+    println!("{:?}", n.bytes);
 }

@@ -1,62 +1,69 @@
-#[derive(Debug, Clone, PartialEq, Eq)]
+#![allow(dead_code)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct MyNum {
-    pub data: Vec<u32>,
+    pub bytes: Vec<u8>,
 }
 
 impl MyNum {
-    pub fn new(size: usize) -> Self {
+    pub fn with_bytes(size: usize) -> Self {
         Self {
-            data: vec![0; size],
+            bytes: vec![0; size],
+        }
+    }
+
+    pub fn with_bits(size: usize) -> Self {
+        let size_in_bytes = (size as f32 / u8::BITS as f32).ceil() as usize;
+
+        Self {
+            bytes: vec![0; size_in_bytes],
         }
     }
 
     pub fn set_nth_bit(&mut self, n: usize) {
-        assert!((((n - 1) as f32 / 8.0).ceil() as usize) < self.data.len());
+        let index = n / u8::BITS as usize;
+        let bit_to_change = n % u8::BITS as usize;
 
-        let index = (n - 1) / 8;
-        let bit_to_change = (n - 1) % 8;
-
-        let byte = self.data.get_mut(index).unwrap();
-
-        *byte |= 1 << bit_to_change;
+        if let Some(byte) = self.bytes.get_mut(index) {
+            *byte |= 1 << bit_to_change;
+        }
     }
 
     pub fn and(&self, rhs: &Self) -> Self {
-        assert_eq!(self.data.len(), rhs.data.len());
+        assert_eq!(self.bytes.len(), rhs.bytes.len(), "2 Different lengths");
         
-        let data = self
-            .data
+        let bytes = self
+            .bytes
             .iter()
-            .zip(rhs.data.iter())
+            .zip(rhs.bytes.iter())
             .map(|(x1, x2)| x1 & x2)
             .collect();
 
-        Self { data }
+        Self { bytes }
     }
 
     pub fn or(&self, rhs: &Self) -> Self {
-        assert_eq!(self.data.len(), rhs.data.len());
+        assert_eq!(self.bytes.len(), rhs.bytes.len(), "2 Different lengths");
 
-        let data = self
-            .data
+        let bytes = self
+            .bytes
             .iter()
-            .zip(rhs.data.iter())
+            .zip(rhs.bytes.iter())
             .map(|(x1, x2)| x1 | x2)
             .collect();
 
-        Self { data }
+        Self { bytes }
     }
 
     pub fn xor(&self, rhs: &Self) -> Self {
-        assert_eq!(self.data.len(), rhs.data.len());
+        assert_eq!(self.bytes.len(), rhs.bytes.len(), "2 Different lengths");
 
-        let data = self
-            .data
+        let bytes = self
+            .bytes
             .iter()
-            .zip(rhs.data.iter())
+            .zip(rhs.bytes.iter())
             .map(|(x1, x2)| x1 ^ x2)
             .collect();
 
-        Self { data }
+        Self { bytes }
     }
 }
