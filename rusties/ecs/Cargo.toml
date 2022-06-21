@@ -1,0 +1,12 @@
+[package]
+name = "ecs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hashbrown = "0.12.1"
+parking_lot = "0.12.1"
+anymap = "0.12.1"
+
+[profile.test] 
+opt-level = 3
