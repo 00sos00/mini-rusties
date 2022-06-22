@@ -1,14 +1,14 @@
 #![allow(dead_code)]
 use crate::bit_field::BitField;
-use anymap::AnyMap;
 use hashbrown::{HashMap, HashSet};
-use std::{any::TypeId, borrow::BorrowMut, sync::Mutex};
+use parking_lot::RwLock;
+use std::any::{Any, TypeId};
 
 type EntityId = usize;
-type EntityContainer = Mutex<Entity>;
-type ComponentContainer<T> = Mutex<Option<T>>;
+type EntityContainer = RwLock<Entity>;
+type ComponentContainer<T> = RwLock<Option<T>>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Entity {
     id: EntityId,
     group_id: String,
@@ -18,143 +18,107 @@ pub struct Entity {
 pub struct EntityStorage {
     max_entities: usize,
     max_registered_components: usize,
-    entities: Vec<EntityContainer>,
-    groups: HashMap<String, HashSet<EntityId>>,
-    archetypes: HashMap<BitField, HashSet<EntityId>>,
-    components: AnyMap,
+    pub entities: RwLock<Vec<EntityContainer>>,
+    groups: RwLock<HashMap<String, HashSet<EntityId>>>,
+    archetypes: RwLock<HashMap<BitField, HashSet<EntityId>>>,
+    components: RwLock<HashMap<TypeId, Box<dyn Any>>>,
     component_bitfields: HashMap<TypeId, BitField>,
-    free_entity_ids: Vec<EntityId>,
+    free_entity_ids: RwLock<Vec<EntityId>>,
 }
 
 impl EntityStorage {
     pub fn new(max_entities: usize, max_registered_components: usize) -> Self {
+        let mut entities = vec![];
+
+        (0..max_entities).for_each(|id| {
+            entities.push(RwLock::new(Entity {
+                id,
+                group_id: String::new(),
+                components_bitfield: BitField::with_bits(max_registered_components),
+            }))
+        });
+
         Self {
             max_entities,
             max_registered_components,
-            entities: Vec::with_capacity(max_entities),
-            groups: HashMap::new(),
-            archetypes: HashMap::new(),
-            components: AnyMap::with_capacity(max_registered_components),
+            entities: RwLock::new(entities),
+            groups: RwLock::new(HashMap::from([(String::new(), HashSet::new())])),
+            archetypes: RwLock::new(HashMap::new()),
+            components: RwLock::new(HashMap::with_capacity(max_registered_components)),
             component_bitfields: HashMap::with_capacity(max_registered_components),
-            free_entity_ids: vec![],
+            free_entity_ids: RwLock::new((0..max_entities).rev().collect::<Vec<usize>>()),
         }
     }
 
-    pub fn register_group(&mut self, group_id: &str) {
-        self.groups.insert(group_id.to_string(), HashSet::new());
+    pub fn register_group(&self, group_id: &str) {
+        if let Some(mut groups) = self.groups.try_write() {
+            groups.insert(group_id.to_string(), HashSet::new());
+        }
     }
 
     pub fn register_component<T: 'static>(&mut self) {
-        let mut bitfield = BitField::with_bits(self.max_registered_components);
-        bitfield.set_nth_bit(self.components.len());
+        if let Some(mut components) = self.components.try_write() {
+            let mut bitfield = BitField::with_bits(self.max_registered_components);
+            bitfield.set_nth_bit(components.len());
 
-        let mut component_vec: Vec<ComponentContainer<T>> = Vec::with_capacity(self.max_entities);
-        ((0..self.max_entities).for_each(|_| component_vec.push(Mutex::new(None))));
+            let mut component_vec: Vec<ComponentContainer<T>> =
+                Vec::with_capacity(self.max_entities);
+            ((0..self.max_entities).for_each(|_| component_vec.push(RwLock::new(None))));
 
-        self.components.insert(component_vec);
-        self.component_bitfields.insert(TypeId::of::<T>(), bitfield);
+            components.insert(TypeId::of::<T>(), Box::new(component_vec));
+            self.component_bitfields.insert(TypeId::of::<T>(), bitfield);
+        }
     }
 
-    pub fn create_entity(&mut self, group_id: Option<&str>) -> EntityId {
-        assert!(
-            self.entities.len() <= self.max_entities,
-            "Max entities reached"
-        );
+    pub fn create_entity(&self, group_id: Option<&str>) -> Option<EntityId> {
+        let entity_id = self.free_entity_ids.try_write()?.pop()?;
+
+        let entities = self.entities.try_read()?;
+        let mut entity = entities.get(entity_id).unwrap().try_write()?;
 
         let group_id = group_id.unwrap_or("").to_string();
-        let components_bitfield = BitField::with_bits(self.max_registered_components);
+        entity.group_id = group_id.clone();
 
-        if let Some(entity_id) = self.free_entity_ids.pop() {
-            *self.entities.get_mut(entity_id).unwrap() = Mutex::new(Entity {
-                id: entity_id,
-                group_id: group_id.clone(),
-                components_bitfield,
-            });
+        self.groups
+            .try_write()?
+            .get_mut(&group_id)?
+            .insert(entity_id);
 
-            if let Some(group) = self.groups.get_mut(&group_id) {
-                group.insert(entity_id);
-            }
-
-            return self.entities.get(entity_id).unwrap().lock().unwrap().id;
-        } else {
-            let entity_id = self.entities.len();
-
-            self.entities.push(Mutex::new(Entity {
-                id: entity_id,
-                group_id: group_id.clone(),
-                components_bitfield,
-            }));
-
-            if let Some(group) = self.groups.get_mut(&group_id) {
-                group.insert(entity_id);
-            }
-
-            return self.entities.last().unwrap().lock().unwrap().id;
-        };
+        Some(entity_id)
     }
 
-    pub fn add_component_to<T: 'static>(&mut self, entity_id: EntityId, component: T) {
-        let component_bitfield =
-            if let Some(component_bitfield) = self.component_bitfields.get(&TypeId::of::<T>()) {
-                component_bitfield
-            } else {
-                return;
-            };
+    pub fn add_component_to<T: 'static>(&self, entity_id: EntityId, component: T) -> Option<()> {
+        let l = std::time::Instant::now();
+        let component_bitfield = self.component_bitfields.get(&TypeId::of::<T>())?;
 
-        let entity_container = if let Some(entity_container) = self.entities.get(entity_id) {
-            entity_container
-        } else {
-            return;
-        };
-
-        let mut entity = if let Ok(entity) = entity_container.try_lock() {
-            entity
-        } else {
-            return;
-        };
-
-        if let Some(old_archetype) = self.archetypes.get_mut(&entity.components_bitfield) {
+        
+        let entities = self.entities.try_read()?;
+        let mut entity = entities.get(entity_id).unwrap().try_write()?;
+        
+        let mut archetypes = self.archetypes.try_write()?;
+        
+        if let Some(old_archetype) = archetypes.get_mut(&entity.components_bitfield) {
             old_archetype.remove(&entity_id);
         }
-
+        
         entity.components_bitfield = entity.components_bitfield.or(component_bitfield);
-
-        let new_archetype = self
-            .archetypes
-            .entry(entity.components_bitfield.clone())
-            .or_insert(HashSet::new());
-
+        
+        let new_archetype = archetypes
+        .entry(entity.components_bitfield.clone())
+        .or_insert(HashSet::new());
+        
         new_archetype.insert(entity_id);
-
-        let component_vec =
-            if let Some(component_vec) = self.components.get::<Vec<ComponentContainer<T>>>() {
-                component_vec
-            } else {
-                return;
-            };
-
-        if let Ok(mut component_option) = component_vec[entity_id].try_lock() {
-            component_option.borrow_mut().replace(component);
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    struct Position(f32, f32);
-    struct Velocity(f32, f32);
-
-    #[test]
-    fn create_entity() {
-        let mut entity_storage = EntityStorage::new(1024, 16);
-
-        let l = std::time::Instant::now();
-        for _ in 0..100 {
-            entity_storage.create_entity(None);
-        }
-
+        
+        let components = self.components.try_read()?;
+        let component_vec = components
+        .get(&TypeId::of::<T>())?
+        .downcast_ref::<Vec<ComponentContainer<T>>>()?;
+        
+        let mut old_component = component_vec[entity_id].try_write()?;
+        
+        old_component.replace(component);
         println!("{}", l.elapsed().as_nanos());
+
+        Some(())
     }
 }
