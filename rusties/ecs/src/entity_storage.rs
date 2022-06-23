@@ -88,34 +88,33 @@ impl EntityStorage {
     }
 
     pub fn add_component_to<T: 'static>(&self, entity_id: EntityId, component: T) -> Option<()> {
-        let l = std::time::Instant::now();
         let component_bitfield = self.component_bitfields.get(&TypeId::of::<T>())?;
 
-        
         let entities = self.entities.try_read()?;
         let mut entity = entities.get(entity_id).unwrap().try_write()?;
-        
+
         let mut archetypes = self.archetypes.try_write()?;
-        
+
         if let Some(old_archetype) = archetypes.get_mut(&entity.components_bitfield) {
             old_archetype.remove(&entity_id);
         }
-        
+
         entity.components_bitfield = entity.components_bitfield.or(component_bitfield);
-        
+
         let new_archetype = archetypes
-        .entry(entity.components_bitfield.clone())
-        .or_insert(HashSet::new());
-        
+            .entry(entity.components_bitfield.clone())
+            .or_insert(HashSet::new());
+
         new_archetype.insert(entity_id);
-        
+        let l = std::time::Instant::now();
+
         let components = self.components.try_read()?;
         let component_vec = components
-        .get(&TypeId::of::<T>())?
-        .downcast_ref::<Vec<ComponentContainer<T>>>()?;
-        
+            .get(&TypeId::of::<T>())?
+            .downcast_ref::<Vec<ComponentContainer<T>>>()?;
+
         let mut old_component = component_vec[entity_id].try_write()?;
-        
+
         old_component.replace(component);
         println!("{}", l.elapsed().as_nanos());
 

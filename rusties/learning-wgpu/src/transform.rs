@@ -1,12 +1,10 @@
 #![allow(dead_code)]
 use glam::*;
 
-lazy_static::lazy_static! {
-    // Left handed
-    pub static ref WORLD_RIGHT: Vec3 = Vec3::X;
-    pub static ref WORLD_UP: Vec3 = Vec3::Y;
-    pub static ref WORLD_FORWARD: Vec3 = -Vec3::Z;
-}
+// lEFT HANDED COORDINATE SYSTEM
+pub const WORLD_RIGHT: Vec3 = Vec3::X;
+pub const WORLD_UP: Vec3 = Vec3::Y;
+pub const WORLD_FORWARD: Vec3 = Vec3::NEG_Z;
 
 fn absolute_angle(a: f32) -> f32 {
     let ar = a % 360.0;
@@ -49,9 +47,9 @@ impl Default for Orientation {
             pitch: 0.0,
             yaw: 0.0,
             roll: 0.0,
-            forward: *WORLD_FORWARD,
-            right: *WORLD_RIGHT,
-            up: *WORLD_UP,
+            forward: WORLD_FORWARD,
+            right: WORLD_RIGHT,
+            up: WORLD_UP,
             rotation: Quat::IDENTITY,
         }
     }
@@ -61,18 +59,18 @@ impl Orientation {
     pub fn right(&self) -> Vec3 {
         let self_forward = self.forward();
 
-        self_forward.cross(*WORLD_UP).normalize()
+        self_forward.cross(WORLD_UP).normalize()
     }
 
     pub fn up(&self) -> Vec3 {
         let self_forward = self.forward();
-        let self_right = self_forward.cross(*WORLD_UP).normalize();
+        let self_right = self_forward.cross(WORLD_UP).normalize();
 
-        self_right.cross(self_forward) // Or [self.rotation * *WORLD_UP].normalize() for space-games
+        self_right.cross(self_forward) // Or [self.rotation * WORLD_UP].normalize() for space-games
     }
 
     pub fn forward(&self) -> Vec3 {
-        (self.rotation * *WORLD_FORWARD).normalize()
+        (self.rotation * WORLD_FORWARD).normalize()
     }
 
     pub fn reset(&mut self) {
@@ -111,7 +109,7 @@ impl Transform {
         self.translation += if self.transform_state == TransformState::Local {
             self_right * x + self_up * y + self_forward * z
         } else {
-            *WORLD_RIGHT * x + *WORLD_UP * y + *WORLD_FORWARD * z
+            WORLD_RIGHT * x + WORLD_UP * y + WORLD_FORWARD * z
         };
     }
 
@@ -131,11 +129,11 @@ impl Transform {
                 self.orientation.forward,
             )
         } else {
-            (*WORLD_RIGHT, *WORLD_UP, *WORLD_FORWARD)
+            (WORLD_RIGHT, WORLD_UP, WORLD_FORWARD)
         };
 
         let x = Quat::from_axis_angle(right, pitch.to_radians());
-        let y = Quat::from_axis_angle(*WORLD_UP, -yaw.to_radians());
+        let y = Quat::from_axis_angle(WORLD_UP, -yaw.to_radians());
         let z = Quat::from_axis_angle(forward, roll.to_radians());
         let quat = (x * y * z).normalize();
         /* let quat = Quat::from_euler(
@@ -160,8 +158,10 @@ impl Transform {
     }
 
     pub fn look_at(&mut self, point: Vec3) {
-        if point == self.translation { return }
-        
+        if point == self.translation {
+            return;
+        }
+
         let self_forward = self.orientation.forward;
         let dir = (point - self.translation).normalize();
 

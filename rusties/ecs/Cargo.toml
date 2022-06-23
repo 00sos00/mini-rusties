@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.58"
+thiserror = "1.0.31"
 bevy_ecs = "0.7.0"
 hashbrown = "0.12.1"
 parking_lot = "0.12.1"

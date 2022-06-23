@@ -135,7 +135,7 @@ impl Camera {
 
         if input.key_pressed(VirtualKeyCode::G) {
             self.transform
-                .rotate_around(vec3(0.0, 0.0, -100.0), *WORLD_UP, 45.0);
+                .rotate_around(vec3(0.0, 0.0, -100.0), WORLD_UP, 45.0);
             //self.transform.look_at(vec3(0.0, 0.0, -100.0));
         }
     }
@@ -155,9 +155,9 @@ impl Camera {
         let fxz = vec3(f.x, 0.0, f.z);
         let uxy = vec3(u.x, u.y, 0.0);
 
-        let pitch = fyz.dot(*WORLD_FORWARD);
-        let yaw = fxz.dot(*WORLD_FORWARD);
-        let roll = uxy.dot(*WORLD_UP);
+        let pitch = fyz.dot(WORLD_FORWARD);
+        let yaw = fxz.dot(WORLD_FORWARD);
+        let roll = uxy.dot(WORLD_UP);
 
         println!("{pitch:?} {yaw:?} {roll:?}"); */
 
@@ -171,7 +171,11 @@ impl Camera {
         let camera_forward = self.transform.orientation.forward();
         let camera_up = self.transform.orientation.up();
 
-        let view = Mat4::look_at_rh(self.transform.translation, self.transform.translation + camera_forward, camera_up);
+        let view = Mat4::look_at_rh(
+            self.transform.translation,
+            self.transform.translation + camera_forward,
+            camera_up,
+        );
         let proj = Mat4::perspective_rh(self.fov.to_radians(), self.aspect, self.znear, self.zfar);
 
         CameraUniform {

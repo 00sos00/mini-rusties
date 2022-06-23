@@ -2,7 +2,7 @@ use crate::{
     camera::Camera,
     cube::{Cube, CUBE_VERTICES},
     texture::Texture,
-    vertex::Vertex, transform::TransformState,
+    vertex::Vertex,
 };
 use wgpu::{include_wgsl, util::DeviceExt};
 use winit::window::Window;
@@ -92,7 +92,7 @@ impl State {
             present_mode: wgpu::PresentMode::Fifo,
         };
 
-        let mut camera = Camera::new(&device, "Main Camera");
+        let camera = Camera::new(&device, "Main Camera");
         let mut cube = Cube::new(&device, "Cube");
 
         cube.transform.scale(50.0, 50.0, 50.0);
@@ -239,7 +239,9 @@ impl State {
     }
 
     fn update_cube(&mut self) {
-        self.cube.transform.look_at(self.camera.transform.translation);
+        self.cube
+            .transform
+            .look_at(self.camera.transform.translation);
         self.cube.update_uniform_buffer(&self.queue);
     }
 
