@@ -1,3 +1,5 @@
+#![feature(pointer_is_aligned)]
+#![feature(ptr_to_from_bits)]
 use std::cell::UnsafeCell;
 
 #[derive(Debug)]
@@ -6,19 +8,19 @@ enum BorrowedAs {
     Mut,
 }
 
-trait BorrowState: Sized {
+trait BorrowState<U>: Sized {
     type Unborrowed;
 
     const BORROW_STATE: BorrowedAs;
 }
 
-impl<T> BorrowState for &T {
+impl<T, U: 'static> BorrowState<U> for &T {
     type Unborrowed = T;
 
     const BORROW_STATE: BorrowedAs = BorrowedAs::Ref;
 }
 
-impl<T> BorrowState for &mut T {
+impl<T, U: 'static> BorrowState<U> for &mut T {
     type Unborrowed = T;
 
     const BORROW_STATE: BorrowedAs = BorrowedAs::Mut;
@@ -52,7 +54,7 @@ impl<T: 'static> Holder<T> {
         }
     }
 
-    fn get<U: BorrowState + 'static>(&self) -> U {
+    fn get<U: BorrowState<T> + 'static>(&self) -> U {
         use std::any::{type_name, TypeId};
 
         assert!(
