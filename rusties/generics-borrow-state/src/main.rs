@@ -1,85 +1,57 @@
-#![feature(pointer_is_aligned)]
-#![feature(ptr_to_from_bits)]
-use std::cell::UnsafeCell;
+mod coerce;
+mod holder;
+mod borrow_state;
 
-#[derive(Debug)]
-enum BorrowedAs {
-    Ref,
-    Mut,
-}
+use holder::Holder;
+use paste::paste;
 
-trait BorrowState<U>: Sized {
-    type Unborrowed;
+struct EntityStorage;
 
-    const BORROW_STATE: BorrowedAs;
-}
+macro_rules! query_from {
+    ($entity_storage:expr, $($component_type:ty,)+) => {
+        let entity_storage: EntityStorage = $entity_storage;
+        let mut query_bitfield = BitField::new();
 
-impl<T, U: 'static> BorrowState<U> for &T {
-    type Unborrowed = T;
+        $(
+            let bitfield = entity_storage.bitfields.get(&TypeId::of::<<$component_type>::Unborrowed>());
+            query_bitfield = query_bitfield.or(bitfield);
+        )+
 
-    const BORROW_STATE: BorrowedAs = BorrowedAs::Ref;
-}
+        let archetype_entities = entity_storage.archetypes.get(query_bitfield).unwrap();
+        let mut query = vec![];
 
-impl<T, U: 'static> BorrowState<U> for &mut T {
-    type Unborrowed = T;
+        for entity in archetype_entities {
+            query.push(
+                (entity, ($(
+                    let type_id = TypeId::of::<<$component_type>::Unborrowed>();
+                    let component_vec = entity_storage.components.get(&type_id).unwrap();
 
-    const BORROW_STATE: BorrowedAs = BorrowedAs::Mut;
-}
-
-const unsafe fn coerce<T, U>(from: T) -> U {
-    use std::mem::ManuallyDrop;
-
-    #[repr(C)]
-    union Transmuter<T, U> {
-        from: ManuallyDrop<T>,
-        to: ManuallyDrop<U>,
-    }
-
-    ManuallyDrop::into_inner(
-        Transmuter {
-            from: ManuallyDrop::new(from),
+                    component_vec[entity].get::<$component_type>().unwrap()
+                ),+))
+            )
         }
-        .to,
-    )
+
+        query
+    };
 }
 
-struct Holder<T> {
-    value: UnsafeCell<T>,
-}
-
-impl<T: 'static> Holder<T> {
-    fn new(value: T) -> Self {
-        Self {
-            value: UnsafeCell::new(value),
-        }
-    }
-
-    fn get<U: BorrowState<T> + 'static>(&self) -> U {
-        use std::any::{type_name, TypeId};
-
-        assert!(
-            TypeId::of::<U::Unborrowed>() == TypeId::of::<T>(),
-            "Expected {} but received {}",
-            type_name::<T>(),
-            type_name::<U::Unborrowed>()
-        );
-
-        match U::BORROW_STATE {
-            BorrowedAs::Ref => unsafe { coerce(&*self.value.get()) },
-            BorrowedAs::Mut => unsafe { coerce(&mut *self.value.get()) },
-        }
-    }
+macro_rules! test {
+    ($t:ty) => {
+        paste! { [<_ $t>] }
+    };
 }
 
 fn main() {
-    let holder = Holder::new(5u8);
+    test!(u8);
 
-    let holder_val1 = holder.get::<&u8>();
-    let holder_val2 = holder.get::<&mut u8>();
+    let holder = Holder::new(0u8);
+
+    let holder_val1 = holder.get::<&u8>().unwrap();
+    let holder_val2 = holder.get::<&mut u8>().unwrap();
 
     println!("{holder_val1} {holder_val2}");
 
     *holder_val2 += 1;
 
-    println!("{}", holder.get::<&u8>());
+    println!("{}", holder.get::<&u8>().unwrap());
 }
