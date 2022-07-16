@@ -16,6 +16,8 @@ impl BitField {
     pub fn with_bits(size: usize) -> Self {
         let size_in_bytes = (size as f32 / u8::BITS as f32).ceil() as usize;
 
+        assert!(size_in_bytes != 0);
+
         Self {
             bytes: vec![0; size_in_bytes],
         }
@@ -32,7 +34,7 @@ impl BitField {
 
     pub fn and(&self, rhs: &Self) -> Self {
         assert_eq!(self.bytes.len(), rhs.bytes.len(), "2 Different lengths");
-        
+
         let bytes = self
             .bytes
             .iter()
