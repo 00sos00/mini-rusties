@@ -21,7 +21,7 @@ pub struct EntityStorage {
     pub entities: RwLock<Vec<EntityContainer>>,
     groups: RwLock<HashMap<String, HashSet<EntityId>>>,
     archetypes: RwLock<HashMap<BitField, HashSet<EntityId>>>,
-    components: RwLock<HashMap<TypeId, Box<dyn Any>>>,
+    components: HashMap<TypeId, Box<dyn Any>>,
     component_bitfields: HashMap<TypeId, BitField>,
     free_entity_ids: RwLock<Vec<EntityId>>,
 }
@@ -44,8 +44,8 @@ impl EntityStorage {
             entities: RwLock::new(entities),
             groups: RwLock::new(HashMap::from([(String::new(), HashSet::new())])),
             archetypes: RwLock::new(HashMap::new()),
-            components: RwLock::new(HashMap::with_capacity(max_registered_components)),
-            component_bitfields: HashMap::with_capacity(max_registered_components),
+            components: HashMap::new(),
+            component_bitfields: HashMap::new(),
             free_entity_ids: RwLock::new((0..max_entities).rev().collect::<Vec<usize>>()),
         }
     }
@@ -57,17 +57,15 @@ impl EntityStorage {
     }
 
     pub fn register_component<T: 'static>(&mut self) {
-        if let Some(mut components) = self.components.try_write() {
-            let mut bitfield = BitField::with_bits(self.max_registered_components);
-            bitfield.set_nth_bit(components.len());
+        let mut bitfield = BitField::with_bits(self.max_registered_components);
+        bitfield.set_nth_bit(self.components.len());
 
-            let mut component_vec: Vec<ComponentContainer<T>> =
-                Vec::with_capacity(self.max_entities);
-            ((0..self.max_entities).for_each(|_| component_vec.push(RwLock::new(None))));
+        let mut component_vec: Vec<ComponentContainer<T>> = Vec::with_capacity(self.max_entities);
+        ((0..self.max_entities).for_each(|_| component_vec.push(RwLock::new(None))));
 
-            components.insert(TypeId::of::<T>(), Box::new(component_vec));
-            self.component_bitfields.insert(TypeId::of::<T>(), bitfield);
-        }
+        self.components
+            .insert(TypeId::of::<T>(), Box::new(component_vec));
+        self.component_bitfields.insert(TypeId::of::<T>(), bitfield);
     }
 
     pub fn create_entity(&self, group_id: Option<&str>) -> Option<EntityId> {
@@ -108,15 +106,15 @@ impl EntityStorage {
         new_archetype.insert(entity_id);
         let l = std::time::Instant::now();
 
-        let components = self.components.try_read()?;
-        let component_vec = components
+        let component_vec = self
+            .components
             .get(&TypeId::of::<T>())?
             .downcast_ref::<Vec<ComponentContainer<T>>>()?;
 
+            println!("{}", l.elapsed().as_nanos());
         let mut old_component = component_vec[entity_id].try_write()?;
 
         old_component.replace(component);
-        println!("{}", l.elapsed().as_nanos());
 
         Some(())
     }

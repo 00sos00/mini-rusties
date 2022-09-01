@@ -9,7 +9,7 @@ struct EntityStorage;
 
 macro_rules! query_from {
     ($entity_storage:expr, $($component_type:ty,)+) => {
-        let entity_storage: EntityStorage = $entity_storage;
+        let entity_storage: &EntityStorage = $entity_storage;
         let mut query_bitfield = BitField::new();
 
         $(
@@ -35,16 +35,86 @@ macro_rules! query_from {
     };
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 macro_rules! test {
     ($t:ty) => {
-        paste! { [<_ $t>] }
+        paste! {
+            let [< env!() >]: $t;
+        }
     };
 }
 
 fn main() {
     test!(u8);
+}
 
-    let holder = Holder::new(0u8);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    /* let holder = Holder::new(0u8);
 
     let holder_val1 = holder.get::<&u8>().unwrap();
     let holder_val2 = holder.get::<&mut u8>().unwrap();
@@ -54,4 +124,4 @@ fn main() {
     *holder_val2 += 1;
 
     println!("{}", holder.get::<&u8>().unwrap());
-}
+} */
